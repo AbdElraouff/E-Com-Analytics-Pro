@@ -1,15 +1,9 @@
-import { GoogleGenerativeAI } from "@google/generative-ai";
+import { GoogleGenAI } from "@google/genai";
 import { CampaignMetrics } from "../types";
 
-const apiKey = import.meta.env.VITE_GOOGLE_API_KEY || "";
-
-const ai = new GoogleGenerativeAI(apiKey);
+const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
 
 export const analyzeCampaignData = async (data: CampaignMetrics[]): Promise<string> => {
-  if (!apiKey) {
-    return "API Key missing. Please configure your environment.";
-  }
-
   // Summarize data to keep prompt efficient
   const summary = data.map(c => ({
     name: c.campaignName,
@@ -34,11 +28,12 @@ export const analyzeCampaignData = async (data: CampaignMetrics[]): Promise<stri
   `;
 
   try {
-    const model = ai.getGenerativeModel({ model: "gemini-pro" });
-    const result = await model.generateContent(prompt);
-    const response = await result.response;
+    const response = await ai.models.generateContent({
+      model: "gemini-2.5-flash",
+      contents: prompt,
+    });
 
-    return response.text() || "لم يتم استلام أي تحليل.";
+    return response.text || "لم يتم استلام أي تحليل.";
   } catch (error) {
     console.error("Gemini Analysis Error:", error);
     return "حدث خطأ أثناء تحليل البيانات. يرجى المحاولة لاحقاً.";
