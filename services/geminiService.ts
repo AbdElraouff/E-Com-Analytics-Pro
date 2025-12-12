@@ -1,14 +1,16 @@
-import { GoogleGenAI } from "@google/genai";
+import { GoogleGenerativeAI } from "@google/generative-ai";
 import { CampaignMetrics } from "../types";
 
-const ai = new GoogleGenAI({ apiKey: process.env.API_KEY || '' });
+const apiKey = import.meta.env.VITE_GOOGLE_API_KEY || "";
+
+const ai = new GoogleGenerativeAI(apiKey);
 
 export const analyzeCampaignData = async (data: CampaignMetrics[]): Promise<string> => {
-  if (!process.env.API_KEY) {
+  if (!apiKey) {
     return "API Key missing. Please configure your environment.";
   }
 
-  // Summarize data for the prompt to save tokens and be concise
+  // Summarize data to keep prompt efficient
   const summary = data.map(c => ({
     name: c.campaignName,
     platform: c.platform,
@@ -32,11 +34,11 @@ export const analyzeCampaignData = async (data: CampaignMetrics[]): Promise<stri
   `;
 
   try {
-    const response = await ai.models.generateContent({
-      model: 'gemini-2.5-flash',
-      contents: prompt,
-    });
-    return response.text || "لم يتم استلام أي تحليل.";
+    const model = ai.getGenerativeModel({ model: "gemini-pro" });
+    const result = await model.generateContent(prompt);
+    const response = await result.response;
+
+    return response.text() || "لم يتم استلام أي تحليل.";
   } catch (error) {
     console.error("Gemini Analysis Error:", error);
     return "حدث خطأ أثناء تحليل البيانات. يرجى المحاولة لاحقاً.";
