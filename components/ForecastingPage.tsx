@@ -16,6 +16,7 @@ import { arSA } from 'date-fns/locale';
 import { TrendingUp, Calendar, DollarSign, Percent, Sliders, ArrowRight } from 'lucide-react';
 import { StatCard } from './StatCard';
 import { GoogleGenerativeAI } from "@google/generative-ai";
+const apiKey = import.meta.env.VITE_GOOGLE_API_KEY;
 
 interface Props {
   allLogs: DailyLog[];
@@ -132,39 +133,43 @@ export const ForecastingPage: React.FC<Props> = ({ allLogs, settings }) => {
   const totalForecastedRevenue = forecastData.reduce((sum, d) => sum + d.revenue, 0);
   const forecastedRoas = totalForecastedSpend > 0 ? totalForecastedRevenue / totalForecastedSpend : 0;
 
-  // AI Analysis Function
-  const generateAiForecast = async () => {
-    setLoadingAi(true);
+// AI Analysis Function
+const generateAiForecast = async () => {
+  setLoadingAi(true);
+
+  const prompt = `
+    بناءً على البيانات التاريخية وتوقعات السيناريو التالي:
+    - متوسط الإنفاق اليومي الحالي: ${baselines.avgSpend.toFixed(2)}
+    - متوسط العائد (ROAS) الحالي: ${baselines.avgRoas.toFixed(2)}
+    - التغيير في الميزانية: ${budgetGrowth}%
+    - تغيير ROAS المتوقع: ${roasChange}%
+    - فترة التوقع: ${forecastDays} يوم
+
+    النتائج:
+    - إجمالي الإنفاق المتوقع: ${totalForecastedSpend.toFixed(2)}
+    - إجمالي العائد المتوقع: ${totalForecastedRevenue.toFixed(2)}
+
+    قدم تحليلًا استراتيجيًا من 3 نقاط.
+  `;
+
+  try {
     const ai = new GoogleGenerativeAI(apiKey);
+    const model = ai.getGenerativeModel({ model: "gemini-pro" });
 
-    
-    const prompt = `
-      بناءً على البيانات التاريخية وتوقعات السيناريو التالي:
-      - متوسط الإنفاق اليومي الحالي: ${baselines.avgSpend.toFixed(2)}
-      - متوسط العائد (ROAS) الحالي: ${baselines.avgRoas.toFixed(2)}
-      - التغيير المقترح في الميزانية: ${budgetGrowth}%
-      - التغيير المتوقع في الـ ROAS: ${roasChange}%
-      - التوقعات لفترة: ${forecastDays} يوم قادمة
-      
-      النتائج المتوقعة:
-      - إجمالي الإنفاق المتوقع: ${totalForecastedSpend.toFixed(2)}
-      - إجمالي العائد المتوقع: ${totalForecastedRevenue.toFixed(2)}
-      
-      قدم تحليلاً استراتيجياً قصيراً (3 نقاط) لهذا السيناريو. هل هو واقعي؟ وما هي المخاطر المحتملة؟
-    `;
+    const result = await model.generateContent({
+      contents: prompt
+    });
 
-    try {
-      const response = await ai.models.generateContent({
-        model: 'gemini-2.5-flash',
-        contents: prompt,
-      });
-      setAiAnalysis(response.text || "لم يتمكن النموذج من تقديم تحليل.");
-    } catch (e) {
-      setAiAnalysis("حدث خطأ في الاتصال بالذكاء الاصطناعي.");
-    } finally {
-      setLoadingAi(false);
-    }
-  };
+    const response = await result.response;
+
+    setAiAnalysis(response.text() || "لم يتمكن النموذج من تقديم تحليل.");
+  } catch (error) {
+    console.error(error);
+    setAiAnalysis("حدث خطأ أثناء الاتصال بالذكاء الاصطناعي.");
+  } finally {
+    setLoadingAi(false);
+  }
+};
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-8 animate-fade-in">
