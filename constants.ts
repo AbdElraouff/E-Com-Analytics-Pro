@@ -7,7 +7,7 @@ export const PLATFORM_CONFIG = {
   snapchat: { label: 'سناب شات', color: '#FFFC00' },
   tiktok: { label: 'تيك توك', color: '#000000' },
   meta: { label: 'ميتا (FB/IG)', color: '#1877F2' },
-  x: { label: 'إكس (تويتر)', color: '#1DA1F2' },
+  x: { label: 'إكس (تويتر)', color: '#000000' },
 };
 
 export const DEFAULT_SETTINGS: AppSettings = {
@@ -112,6 +112,23 @@ export const MOCK_DAILY_LOGS: DailyLog[] = [
     addPaymentInfoValue: 3000,
     purchases: 8,
     purchaseValue: 2850,
+  },
+  {
+    id: generateId(),
+    date: today,
+    campaignName: 'إكس - تغريدات ترويجية',
+    platform: 'x',
+    spend: 250,
+    impressions: 8000,
+    uniqueLinkClicks: 90,
+    landingPageViews: 70,
+    contentViews: 60,
+    addToCarts: 8,
+    addToCartValue: 2000,
+    addPaymentInfo: 3,
+    addPaymentInfoValue: 900,
+    purchases: 2,
+    purchaseValue: 600,
   }
 ];
 
@@ -120,7 +137,7 @@ export const PLATFORM_COLORS = {
   snapchat: '#FFFC00',
   tiktok: '#000000',
   meta: '#1877F2',
-  x: '#1DA1F2',
+  x: '#000000',
 };
 
 export const PLATFORM_LABELS = {
