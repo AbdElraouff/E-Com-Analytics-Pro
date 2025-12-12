@@ -1,7 +1,7 @@
-import { GoogleGenAI } from "@google/genai";
+import { GoogleGenerativeAI } from "@google/generative-ai";
 import { CampaignMetrics } from "../types";
 
-const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+const ai = new GoogleGenerativeAI(process.env.API_KEY || "");
 
 export const analyzeCampaignData = async (data: CampaignMetrics[]): Promise<string> => {
   // Summarize data to keep prompt efficient
