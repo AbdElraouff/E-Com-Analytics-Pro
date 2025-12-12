@@ -1,7 +1,7 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { DailyLog } from '../types';
 import { PLATFORM_CONFIG, PLATFORMS, DEFAULT_SETTINGS } from '../constants';
-import { Plus, Trash2, Save, Calendar, Copy, Clock, ArrowLeft } from 'lucide-react';
+import { Plus, Trash2, Calendar, Copy, Clock, Loader2, CheckCircle2, History } from 'lucide-react';
 import { PlatformIcon } from './PlatformIcon';
 import { format, subDays } from 'date-fns';
 
@@ -13,27 +13,50 @@ interface Props {
 export const DataEntrySheet: React.FC<Props> = ({ data, onUpdate }) => {
   const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
   const [rows, setRows] = useState<DailyLog[]>([]);
+  const [saveStatus, setSaveStatus] = useState<'saved' | 'saving' | 'idle'>('saved');
+  
+  // Ref to track if the update is coming from local editing
+  const isEditingRef = useRef(false);
 
-  // Load rows for the selected date
+  // 1. Load rows for the selected date ONLY when date changes
+  // We avoid adding 'data' to dependency to prevent loop with auto-save
   useEffect(() => {
     const dailyData = data.filter(d => d.date === selectedDate);
     setRows(dailyData);
-  }, [selectedDate, data]);
+    setSaveStatus('saved');
+    isEditingRef.current = false;
+  }, [selectedDate]);
+
+  // 2. Auto-Save Logic with Debounce
+  useEffect(() => {
+    if (!isEditingRef.current) return;
+
+    setSaveStatus('saving');
+    const timer = setTimeout(() => {
+      const otherData = data.filter(d => d.date !== selectedDate);
+      // We pass the new full dataset to parent
+      onUpdate([...otherData, ...rows]);
+      setSaveStatus('saved');
+      isEditingRef.current = false;
+    }, 1000); // Wait 1 second after last keystroke
+
+    return () => clearTimeout(timer);
+  }, [rows, selectedDate]); // Trigger save when rows change
+
+  // 3. Get Unique Campaign Names for Autocomplete
+  const uniqueCampaignNames = useMemo(() => {
+    const names = new Set(data.map(d => d.campaignName));
+    return Array.from(names).filter(Boolean);
+  }, [data]);
 
   const handleInputChange = (id: string, field: keyof DailyLog, value: any) => {
+    isEditingRef.current = true; // Mark as user edit
     setRows(prev => prev.map(row => {
       if (row.id === id) {
         return { ...row, [field]: value };
       }
       return row;
     }));
-  };
-
-  const handleSave = () => {
-    // Remove old entries for this date from the main state and add current rows
-    const otherData = data.filter(d => d.date !== selectedDate);
-    onUpdate([...otherData, ...rows]);
-    alert('تم حفظ البيانات بنجاح!');
   };
 
   const setDateToToday = () => {
@@ -45,6 +68,7 @@ export const DataEntrySheet: React.FC<Props> = ({ data, onUpdate }) => {
   };
 
   const addNewRow = () => {
+    isEditingRef.current = true;
     const newRow: DailyLog = {
       id: Math.random().toString(36).substr(2, 9),
       date: selectedDate,
@@ -66,16 +90,64 @@ export const DataEntrySheet: React.FC<Props> = ({ data, onUpdate }) => {
   };
 
   const duplicateRow = (row: DailyLog) => {
+    isEditingRef.current = true;
     const newRow = { ...row, id: Math.random().toString(36).substr(2, 9) };
     setRows([...rows, newRow]);
   };
 
   const deleteRow = (id: string) => {
-    setRows(rows.filter(r => r.id !== id));
+    if (window.confirm('هل أنت متأكد من حذف هذا الصف؟')) {
+        isEditingRef.current = true;
+        setRows(rows.filter(r => r.id !== id));
+    }
+  };
+
+  // Feature: Import structure from yesterday
+  const importFromYesterday = () => {
+      const yesterday = format(subDays(new Date(selectedDate), 1), 'yyyy-MM-dd');
+      const yesterdaysLogs = data.filter(d => d.date === yesterday);
+
+      if (yesterdaysLogs.length === 0) {
+          alert('لا توجد بيانات ليوم أمس للنسخ منها.');
+          return;
+      }
+
+      if (rows.length > 0) {
+          if (!window.confirm('سيتم إضافة حملات الأمس إلى القائمة الحالية. هل تريد المتابعة؟')) return;
+      }
+
+      isEditingRef.current = true;
+      const newRows = yesterdaysLogs.map(log => ({
+          ...log,
+          id: Math.random().toString(36).substr(2, 9),
+          date: selectedDate,
+          // Reset Metrics to 0
+          spend: 0,
+          impressions: 0,
+          uniqueLinkClicks: 0,
+          landingPageViews: 0,
+          contentViews: 0,
+          addToCarts: 0,
+          addToCartValue: 0,
+          addPaymentInfo: 0,
+          addPaymentInfoValue: 0,
+          purchases: 0,
+          purchaseValue: 0,
+      }));
+
+      setRows(prev => [...prev, ...newRows]);
   };
 
   return (
-    <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden flex flex-col h-full">
+    <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden flex flex-col h-full animate-fade-in">
+      
+      {/* Hidden Datalist for Autocomplete */}
+      <datalist id="campaign-suggestions">
+        {uniqueCampaignNames.map(name => (
+            <option key={name} value={name} />
+        ))}
+      </datalist>
+
       {/* Toolbar */}
       <div className="p-4 border-b border-slate-200 flex flex-wrap gap-4 justify-between items-center bg-slate-50">
         
@@ -109,21 +181,38 @@ export const DataEntrySheet: React.FC<Props> = ({ data, onUpdate }) => {
           </div>
         </div>
 
+        {/* Status Indicator */}
+        <div className="flex-1 flex justify-end px-4">
+            {saveStatus === 'saving' && (
+                <div className="flex items-center gap-2 text-indigo-600 text-sm font-medium animate-pulse">
+                    <Loader2 size={16} className="animate-spin" />
+                    جاري الحفظ تلقائياً...
+                </div>
+            )}
+            {saveStatus === 'saved' && (
+                <div className="flex items-center gap-2 text-green-600 text-sm font-medium transition-all duration-500">
+                    <CheckCircle2 size={16} />
+                    تم الحفظ
+                </div>
+            )}
+        </div>
+
         {/* Action Buttons */}
         <div className="flex items-center gap-2">
-          <button 
-            onClick={addNewRow}
-            className="flex items-center gap-2 px-4 py-2 bg-white border border-indigo-200 text-indigo-700 rounded-lg hover:bg-indigo-50 transition-colors text-sm font-medium"
+           <button 
+            onClick={importFromYesterday}
+            title="إضافة الحملات التي عملت عليها بالأمس (مع تصفير الأرقام)"
+            className="flex items-center gap-2 px-3 py-2 bg-white border border-slate-300 text-slate-600 rounded-lg hover:bg-slate-50 hover:text-slate-800 transition-colors text-sm font-medium"
           >
-            <Plus size={16} />
-            إضافة صف
+            <History size={16} />
+            <span className="hidden sm:inline">نسخ هيكل الأمس</span>
           </button>
           <button 
-            onClick={handleSave}
-            className="flex items-center gap-2 px-6 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors text-sm font-medium shadow-sm"
+            onClick={addNewRow}
+            className="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors text-sm font-medium shadow-sm shadow-indigo-200"
           >
-            <Save size={16} />
-            حفظ البيانات
+            <Plus size={16} />
+            إضافة صف جديد
           </button>
         </div>
       </div>
@@ -134,7 +223,10 @@ export const DataEntrySheet: React.FC<Props> = ({ data, onUpdate }) => {
           <thead className="bg-white text-slate-600 font-semibold sticky top-0 z-20 shadow-sm">
             <tr>
               <th className="p-3 min-w-[60px] sticky right-0 bg-white z-30 text-center">أدوات</th>
-              <th className="p-3 min-w-[220px] sticky right-[60px] bg-white z-30 border-l border-slate-100">اسم الحملة</th>
+              <th className="p-3 min-w-[220px] sticky right-[60px] bg-white z-30 border-l border-slate-100">
+                  اسم الحملة
+                  <span className="block text-[10px] text-slate-400 font-normal mt-0.5">اكتب للاقتراح من السجل</span>
+              </th>
               <th className="p-3 min-w-[140px]">المنصة</th>
               <th className="p-3 min-w-[120px] bg-red-50 text-red-900 border-r border-red-100">الإنفاق ({DEFAULT_SETTINGS.currency})</th>
               <th className="p-3 min-w-[110px]">الظهور</th>
@@ -156,7 +248,7 @@ export const DataEntrySheet: React.FC<Props> = ({ data, onUpdate }) => {
                   <button 
                     onClick={() => duplicateRow(row)}
                     className="p-1.5 text-slate-400 hover:text-indigo-600 rounded-md hover:bg-indigo-50 transition-colors"
-                    title="تكرار"
+                    title="تكرار الصف"
                   >
                     <Copy size={14} />
                   </button>
@@ -171,6 +263,8 @@ export const DataEntrySheet: React.FC<Props> = ({ data, onUpdate }) => {
                 <td className="p-2 sticky right-[60px] bg-white group-hover:bg-slate-50 z-20 border-l border-slate-100">
                   <input 
                     type="text" 
+                    list="campaign-suggestions"
+                    autoComplete="off"
                     value={row.campaignName}
                     onChange={(e) => handleInputChange(row.id, 'campaignName', e.target.value)}
                     className="w-full px-3 py-1.5 border border-slate-200 focus:border-indigo-500 rounded-md bg-transparent focus:bg-white transition-all outline-none"
@@ -205,6 +299,7 @@ export const DataEntrySheet: React.FC<Props> = ({ data, onUpdate }) => {
                       type="number" 
                       min="0"
                       step="0.01"
+                      onWheel={(e) => e.currentTarget.blur()} 
                       value={row[field as keyof DailyLog] as number}
                       onChange={(e) => handleInputChange(row.id, field as keyof DailyLog, parseFloat(e.target.value) || 0)}
                       className={`w-full px-2 py-1.5 border border-slate-200 focus:border-indigo-500 rounded-md bg-transparent focus:bg-white transition-all outline-none text-left ${
@@ -224,11 +319,17 @@ export const DataEntrySheet: React.FC<Props> = ({ data, onUpdate }) => {
                             <Clock size={32} />
                          </div>
                          <p className="text-lg font-medium text-slate-600 mb-2">لا توجد بيانات ليوم <span dir="ltr">{selectedDate}</span></p>
-                         <p className="text-sm mb-6 max-w-xs mx-auto text-slate-400">ابدأ بإضافة حملة جديدة يدوياً أو قم بنسخ بيانات من يوم سابق إذا كانت مشابهة.</p>
+                         <p className="text-sm mb-6 max-w-xs mx-auto text-slate-400">
+                             لتوفير الوقت، يمكنك نسخ هيكل الحملات من يوم أمس (الأسماء والمنصات) ثم تعبئة الأرقام فقط.
+                         </p>
                          <div className="flex gap-3">
+                           <button onClick={importFromYesterday} className="bg-white border border-slate-300 text-slate-700 px-5 py-2 rounded-lg hover:bg-slate-50 transition flex items-center gap-2">
+                               <History size={16} />
+                               نسخ من أمس
+                           </button>
                            <button onClick={addNewRow} className="bg-indigo-600 text-white px-5 py-2 rounded-lg hover:bg-indigo-700 transition flex items-center gap-2">
                                <Plus size={16} />
-                               إضافة حملة جديدة
+                               إضافة يدوية
                            </button>
                          </div>
                     </div>
