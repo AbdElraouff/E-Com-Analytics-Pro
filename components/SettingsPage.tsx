@@ -7,7 +7,7 @@ interface Props {
   onSave: (newSettings: AppSettings) => void;
 }
 
-// Define a unified interface for all setting fields to satisfy TypeScript
+// Define a unified interface for all setting fields
 interface SettingField {
   key: keyof AppSettings;
   label: string;
