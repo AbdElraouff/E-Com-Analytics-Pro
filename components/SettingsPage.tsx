@@ -1,10 +1,26 @@
 import React from 'react';
 import { AppSettings } from '../types';
-import { Save, AlertTriangle, Target, DollarSign, PieChart, Eye, Info } from 'lucide-react';
+import { Save, AlertTriangle, Target, DollarSign, PieChart, Info } from 'lucide-react';
 
 interface Props {
   settings: AppSettings;
   onSave: (newSettings: AppSettings) => void;
+}
+
+// Define a unified interface for all setting fields to satisfy TypeScript
+interface SettingField {
+  key: keyof AppSettings;
+  label: string;
+  type: 'text' | 'number' | 'select' | 'checkbox';
+  step?: number;
+  help?: string;
+  options?: string[];
+}
+
+interface SettingSection {
+  title: string;
+  icon: React.ReactNode;
+  fields: SettingField[];
 }
 
 export const SettingsPage: React.FC<Props> = ({ settings, onSave }) => {
@@ -20,7 +36,7 @@ export const SettingsPage: React.FC<Props> = ({ settings, onSave }) => {
     alert('تم حفظ الإعدادات بنجاح');
   };
 
-  const settingSections = [
+  const settingSections: SettingSection[] = [
     {
       title: 'مؤشرات الأداء الرئيسية (KPIs)',
       icon: <Target className="text-indigo-600" size={20} />,
@@ -96,7 +112,7 @@ export const SettingsPage: React.FC<Props> = ({ settings, onSave }) => {
                                                 onChange={(e) => handleChange(field.key as keyof AppSettings, e.target.value)}
                                                 className="w-full px-4 py-2 bg-white border border-slate-200 rounded-lg text-slate-700 outline-none focus:border-indigo-500 transition-colors"
                                             >
-                                                {field.options?.map(opt => <option key={opt} value={opt}>{opt}</option>)}
+                                                {field.options?.map((opt: string) => <option key={opt} value={opt}>{opt}</option>)}
                                             </select>
                                         ) : (
                                             <input 
