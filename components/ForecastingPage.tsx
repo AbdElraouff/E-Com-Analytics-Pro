@@ -15,7 +15,7 @@ import { addDays, format, subDays, parseISO, compareAsc } from 'date-fns';
 import { arSA } from 'date-fns/locale';
 import { TrendingUp, Calendar, DollarSign, Percent, Sliders, ArrowRight } from 'lucide-react';
 import { StatCard } from './StatCard';
-import { GoogleGenAI } from "@google/genai";
+import { GoogleGenerativeAI } from "@google/generative-ai";
 
 interface Props {
   allLogs: DailyLog[];
@@ -135,7 +135,8 @@ export const ForecastingPage: React.FC<Props> = ({ allLogs, settings }) => {
   // AI Analysis Function
   const generateAiForecast = async () => {
     setLoadingAi(true);
-    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY || '' });
+    const ai = new GoogleGenerativeAI(apiKey);
+
     
     const prompt = `
       بناءً على البيانات التاريخية وتوقعات السيناريو التالي:
